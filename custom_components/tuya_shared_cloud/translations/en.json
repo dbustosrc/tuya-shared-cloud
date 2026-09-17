@@ -1,0 +1,50 @@
+{
+  "title": "Tuya Shared Cloud",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect Tuya individually shared devices",
+        "description": "Only devices returned by Tuya with from=sharing are imported. Devices owned by this account are excluded.",
+        "data": {
+          "region": "Cloud region",
+          "access_id": "Access ID / Client ID",
+          "access_secret": "Access Secret / Client Secret",
+          "uid": "Smart Life / Tuya UID",
+          "scan_interval": "Safety reconciliation interval (seconds)"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Reauthenticate Tuya Shared Cloud",
+        "description": "Tuya rejected the stored project credentials. Enter the current Access ID and Access Secret.",
+        "data": {
+          "access_id": "Access ID / Client ID",
+          "access_secret": "Access Secret / Client Secret"
+        }
+      },
+      "reconfigure": {
+        "title": "Reconfigure Tuya Shared Cloud",
+        "description": "Changes are validated against the individually shared-device inventory before being saved.",
+        "data": {
+          "region": "Cloud region",
+          "access_id": "Access ID / Client ID",
+          "access_secret": "Access Secret / Client Secret",
+          "uid": "Smart Life / Tuya UID",
+          "scan_interval": "Safety reconciliation interval (seconds)"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Unable to connect to Tuya Cloud.",
+      "invalid_auth": "Tuya rejected the project credentials.",
+      "api_error": "Tuya rejected the request. Verify project permissions and account linking.",
+      "push_not_authorized": "Cloud push is unavailable. Verify the linked Smart Life account, project region, and Device Status Notification authorization.",
+      "no_shared_devices": "Tuya returned no individually shared devices for this UID. Owned devices are intentionally excluded."
+    },
+    "abort": {
+      "already_configured": "This Tuya shared-device account is already configured.",
+      "reauth_successful": "The new Tuya credentials were saved successfully.",
+      "reconfigure_successful": "The integration was reconfigured successfully.",
+      "wrong_account": "The credentials belong to a different configured account."
+    }
+  }
+}

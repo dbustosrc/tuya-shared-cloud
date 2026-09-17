@@ -1,0 +1,12 @@
+{
+  "domain": "tuya_shared_cloud",
+  "name": "Tuya Shared Cloud",
+  "codeowners": ["@dbustosrc"],
+  "config_flow": true,
+  "documentation": "https://github.com/dbustosrc/tuya-shared-cloud",
+  "integration_type": "hub",
+  "iot_class": "cloud_push",
+  "issue_tracker": "https://github.com/dbustosrc/tuya-shared-cloud/issues",
+  "requirements": ["paho-mqtt==2.1.0"],
+  "version": "1.1.0"
+}

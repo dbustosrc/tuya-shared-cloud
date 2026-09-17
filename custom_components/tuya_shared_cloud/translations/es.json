@@ -1,0 +1,50 @@
+{
+  "title": "Tuya Shared Cloud",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Conectar dispositivos compartidos individualmente en Tuya",
+        "description": "Solo se importan los dispositivos devueltos por Tuya con from=sharing. Se excluyen los dispositivos propios de esta cuenta.",
+        "data": {
+          "region": "Región Cloud",
+          "access_id": "Access ID / Client ID",
+          "access_secret": "Access Secret / Client Secret",
+          "uid": "UID de Smart Life / Tuya",
+          "scan_interval": "Intervalo de reconciliación de seguridad (segundos)"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Volver a autenticar Tuya Shared Cloud",
+        "description": "Tuya rechazó las credenciales almacenadas. Ingresa el Access ID y Access Secret vigentes.",
+        "data": {
+          "access_id": "Access ID / Client ID",
+          "access_secret": "Access Secret / Client Secret"
+        }
+      },
+      "reconfigure": {
+        "title": "Reconfigurar Tuya Shared Cloud",
+        "description": "Los cambios se validan contra el inventario de dispositivos compartidos individualmente antes de guardarlos.",
+        "data": {
+          "region": "Región Cloud",
+          "access_id": "Access ID / Client ID",
+          "access_secret": "Access Secret / Client Secret",
+          "uid": "UID de Smart Life / Tuya",
+          "scan_interval": "Intervalo de reconciliación de seguridad (segundos)"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "No se pudo conectar con Tuya Cloud.",
+      "invalid_auth": "Tuya rechazó las credenciales del proyecto.",
+      "api_error": "Tuya rechazó la solicitud. Verifica los permisos del proyecto y la cuenta vinculada.",
+      "push_not_authorized": "Cloud push no está disponible. Verifica la cuenta Smart Life vinculada, la región del proyecto y la autorización de Device Status Notification.",
+      "no_shared_devices": "Tuya no devolvió dispositivos compartidos individualmente para este UID. Los dispositivos propios se excluyen intencionalmente."
+    },
+    "abort": {
+      "already_configured": "Esta cuenta de dispositivos compartidos de Tuya ya está configurada.",
+      "reauth_successful": "Las nuevas credenciales de Tuya se guardaron correctamente.",
+      "reconfigure_successful": "La integración se reconfiguró correctamente.",
+      "wrong_account": "Las credenciales pertenecen a otra cuenta ya configurada."
+    }
+  }
+}
