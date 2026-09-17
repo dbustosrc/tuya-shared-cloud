@@ -8,39 +8,45 @@ from homeassistant.components.cover import (
     CoverEntityFeature,
 )
 
-from .const import DOOR_CLOSE, DOOR_OPEN, DP_DOOR_CONTACT, DP_DOOR_CONTROL
+from .const import DOOR_CLOSE, DOOR_OPEN, DP_DOOR_CONTACT
 from .entity import TuyaSharedEntity
 
 
 async def async_setup_entry(hass, entry, async_add_entities) -> None:
-    """Set up a cover for each shared device with door control."""
+    """Set up a cover for each standard Tuya garage-door device."""
     coordinator = entry.runtime_data.coordinator
     async_add_entities(
-        TuyaSharedGarageCover(coordinator, coordinator.devices[device_id])
-        for device_id, functions in entry.runtime_data.functions.items()
-        if DP_DOOR_CONTROL in functions and device_id in coordinator.devices
+        TuyaSharedGarageCover(
+            coordinator,
+            coordinator.devices[device_id],
+            profile,
+        )
+        for device_id, profile in entry.runtime_data.garage_profiles.items()
+        if device_id in coordinator.devices
     )
 
 
 class TuyaSharedGarageCover(TuyaSharedEntity, CoverEntity):
-    """Garage door abstraction backed by control and contact datapoints."""
+    """Garage door abstraction backed by switch_1 and doorcontact_state."""
 
     _attr_device_class = CoverDeviceClass.GARAGE
     _attr_supported_features = CoverEntityFeature.OPEN | CoverEntityFeature.CLOSE
 
-    def __init__(self, coordinator, device) -> None:
+    def __init__(self, coordinator, device, profile) -> None:
         """Initialize the garage cover."""
         super().__init__(coordinator, device, "garage_door")
+        self.profile = profile
         self._attr_name = None
         self._attr_icon = None
+        self._attr_assumed_state = not profile.trust_status
 
     @property
     def is_closed(self) -> bool | None:
         """Return whether the physical contact reports closed."""
-        value = (
+        raw_value = (
             (self.coordinator.data or {}).get(self.device_id, {}).get(DP_DOOR_CONTACT)
         )
-        return not value if isinstance(value, bool) else None
+        return self.profile.contact_is_closed(raw_value)
 
     @property
     def is_opening(self) -> bool:
@@ -62,8 +68,8 @@ class TuyaSharedGarageCover(TuyaSharedEntity, CoverEntity):
         """Open the garage door."""
         await self.coordinator.async_send_command(
             self.device_id,
-            DP_DOOR_CONTROL,
-            DOOR_OPEN,
+            self.profile.control_code,
+            self.profile.command_value(DOOR_OPEN),
             door_command=DOOR_OPEN,
         )
 
@@ -71,7 +77,7 @@ class TuyaSharedGarageCover(TuyaSharedEntity, CoverEntity):
         """Send the supported close command even if the actuator ignores it."""
         await self.coordinator.async_send_command(
             self.device_id,
-            DP_DOOR_CONTROL,
-            DOOR_CLOSE,
+            self.profile.control_code,
+            self.profile.command_value(DOOR_CLOSE),
             door_command=DOOR_CLOSE,
         )

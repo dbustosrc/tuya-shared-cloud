@@ -20,6 +20,7 @@ from .api import (
     TuyaCloudError,
 )
 from .const import DOOR_CLOSE, DOOR_OPEN, DP_DOOR_CONTACT, PENDING_COMMAND_TIMEOUT
+from .garage import GarageDoorProfile
 from .models import TuyaSharedDevice
 from .push import (
     TuyaOpenMQClient,
@@ -42,6 +43,7 @@ class TuyaSharedCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]):
         uid: str,
         scan_interval: int,
         devices: list[TuyaSharedDevice],
+        garage_profiles: dict[str, GarageDoorProfile],
     ) -> None:
         """Initialize the account coordinator."""
         super().__init__(
@@ -54,6 +56,7 @@ class TuyaSharedCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]):
         self.client = client
         self.uid = uid
         self.devices = {device.device_id: device for device in devices}
+        self.garage_profiles = garage_profiles
         self.pending_door_commands: dict[str, tuple[str, float]] = {}
         self._reload_requested = False
         self._baseline_loaded = False
@@ -105,7 +108,8 @@ class TuyaSharedCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]):
         if subscribed:
             _LOGGER.info("Tuya OpenMQ subscribed; cloud push is active")
         elif connected:
-            _LOGGER.warning("Tuya OpenMQ connected but is not subscribed")
+            # This is the normal interval between CONNACK and SUBACK.
+            _LOGGER.debug("Tuya OpenMQ connected; waiting for subscription ack")
         else:
             _LOGGER.warning(
                 "Tuya OpenMQ is disconnected; slow REST reconciliation remains active"
@@ -188,14 +192,15 @@ class TuyaSharedCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]):
         except (TuyaCloudConnectionError, TuyaCloudError) as err:
             raise HomeAssistantError(f"Tuya Cloud command failed: {err}") from err
 
-        if door_command:
+        profile = self.garage_profiles.get(device_id)
+        if door_command and (profile is None or profile.trust_status):
             self.pending_door_commands[device_id] = (
                 door_command,
                 time.monotonic(),
             )
-        optimistic = {key: dict(status) for key, status in (self.data or {}).items()}
-        optimistic.setdefault(device_id, {})[code] = value
-        self.async_set_updated_data(optimistic)
+        # Never claim success from the command acknowledgement alone. Tuya can
+        # accept a command that the actuator ignores; push or REST must confirm
+        # every resulting state change.
         self._suppress_reconciliation_metric_once = True
         await self.async_request_refresh()
 
@@ -209,8 +214,14 @@ class TuyaSharedCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]):
         now = time.monotonic()
         for device_id, (command, started) in list(self.pending_door_commands.items()):
             contact = data.get(device_id, {}).get(DP_DOOR_CONTACT)
-            reached_target = (command == DOOR_OPEN and contact is True) or (
-                command == DOOR_CLOSE and contact is False
+            profile = self.garage_profiles.get(device_id)
+            closed = (
+                profile.contact_is_closed(contact)
+                if profile is not None
+                else (not contact if isinstance(contact, bool) else None)
+            )
+            reached_target = (command == DOOR_OPEN and closed is False) or (
+                command == DOOR_CLOSE and closed is True
             )
             if reached_target or now - started > PENDING_COMMAND_TIMEOUT:
                 self.pending_door_commands.pop(device_id, None)

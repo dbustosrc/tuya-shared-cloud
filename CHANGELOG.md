@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.2.0 — 2026-09-16
+
+- Correct garage-door control for Tuya category `ckmkzq` to use the standard
+  Boolean `switch_1` datapoint instead of the unrelated `door_control_1` enum.
+- Add independent per-device options for command inversion, contact-state
+  inversion, contact-state trust, and the stateless door trigger button.
+- Add a stateless garage-door trigger that remains safe to use when the physical
+  contact is stuck or unreliable.
+- Stop applying optimistic command values: Tuya push or REST must now confirm a
+  state before Home Assistant displays it.
+- Keep every raw function exposed, including `switch_1`, `door_control_1`, and
+  physically unsupported close commands.
+- Move Paho MQTT certificate loading off Home Assistant's event loop.
+- Log the normal interval between MQTT connection and subscription
+  acknowledgement at debug level instead of warning.
+- Document garage-door quirks and the recommended configuration workflow.
+
 ## 1.1.0 — 2026-09-16
 
 - Import only devices received through Tuya individual device sharing.

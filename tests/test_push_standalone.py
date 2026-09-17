@@ -7,6 +7,7 @@ import base64
 import importlib.util
 import json
 import sys
+import threading
 import types
 import unittest
 from pathlib import Path
@@ -63,6 +64,7 @@ class _FakeMQTTClient:
 
     def tls_set(self):
         self.tls = True
+        self.tls_thread_id = threading.get_ident()
 
     def connect_async(self, host, port, keepalive):
         self.connection = (host, port, keepalive)
@@ -230,6 +232,7 @@ class PushTests(unittest.TestCase):
 
     def test_transport_waits_for_broker_subscription_ack(self):
         async def run():
+            event_loop_thread_id = threading.get_ident()
             states = []
             messages = []
             client = push.TuyaOpenMQClient(
@@ -242,6 +245,10 @@ class PushTests(unittest.TestCase):
             await client.async_start()
             self.assertTrue(client.metrics.connected)
             self.assertTrue(client.metrics.subscribed)
+            self.assertNotEqual(
+                _FakeMQTTClient.instances[-1].tls_thread_id,
+                event_loop_thread_id,
+            )
             self.assertEqual(
                 _FakeMQTTClient.instances[-1].subscriptions[0][0],
                 "cloud/device/report",

@@ -46,5 +46,37 @@
       "reconfigure_successful": "La integración se reconfiguró correctamente.",
       "wrong_account": "Las credenciales pertenecen a otra cuenta ya configurada."
     }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Configurar una puerta de garaje",
+        "description": "Elige el dispositivo compartido de puerta de garaje cuyas particularidades de Tuya deseas configurar.",
+        "data": {
+          "garage_device": "Puerta de garaje"
+        }
+      },
+      "garage_device": {
+        "title": "Configurar {device_name}",
+        "description": "La polaridad del comando y la del contacto son independientes. Desactiva el estado confiable cuando el contacto físico no cambie correctamente; el cover quedará como desconocido en lugar de mostrar un estado falso.",
+        "data": {
+          "invert_cover_control": "Invertir los valores de los comandos abrir y cerrar",
+          "invert_cover_status": "Invertir el estado informado por el contacto de puerta",
+          "trust_cover_status": "Confiar en el estado informado por el contacto de puerta",
+          "expose_trigger_button": "Crear un botón de accionamiento sin estado"
+        }
+      }
+    },
+    "abort": {
+      "no_garage_devices": "No se encontraron dispositivos compartidos de puerta de garaje compatibles.",
+      "garage_device_unavailable": "El dispositivo de puerta de garaje seleccionado ya no está disponible."
+    }
+  },
+  "entity": {
+    "button": {
+      "door_trigger": {
+        "name": "Accionar puerta"
+      }
+    }
   }
 }

@@ -27,6 +27,7 @@ from .const import (
     REGION_ENDPOINTS,
 )
 from .coordinator import TuyaSharedCoordinator
+from .garage import build_garage_profiles
 from .models import TuyaFunction, TuyaSharedRuntimeData
 from .push import TuyaOpenMQClient
 
@@ -34,6 +35,7 @@ _LOGGER = logging.getLogger(__name__)
 
 PLATFORMS = [
     Platform.BINARY_SENSOR,
+    Platform.BUTTON,
     Platform.COVER,
     Platform.NUMBER,
     Platform.SELECT,
@@ -73,6 +75,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: TuyaSharedConfigEntry) -
             for function in [TuyaFunction.from_api(raw)]
         }
 
+    garage_profiles = build_garage_profiles(devices, functions, entry.options)
+
     coordinator = TuyaSharedCoordinator(
         hass,
         entry,
@@ -80,6 +84,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: TuyaSharedConfigEntry) -
         entry.data[CONF_UID],
         int(entry.data.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)),
         devices,
+        garage_profiles,
     )
     await coordinator.async_config_entry_first_refresh()
     push_client = TuyaOpenMQClient(
@@ -92,6 +97,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: TuyaSharedConfigEntry) -
     entry.runtime_data = TuyaSharedRuntimeData(
         coordinator=coordinator,
         functions=functions,
+        garage_profiles=garage_profiles,
         push_client=push_client,
     )
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)

@@ -5,11 +5,12 @@ from __future__ import annotations
 import hashlib
 import uuid
 from collections.abc import Mapping
-from typing import Any
+from typing import Any, override
 
 import voluptuous as vol
 from homeassistant import config_entries
-from homeassistant.config_entries import ConfigFlowResult
+from homeassistant.config_entries import ConfigFlowResult, OptionsFlowWithReload
+from homeassistant.core import callback
 from homeassistant.helpers import selector
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
@@ -23,8 +24,14 @@ from .api import (
 from .const import (
     CONF_ACCESS_ID,
     CONF_ACCESS_SECRET,
+    CONF_EXPOSE_TRIGGER_BUTTON,
+    CONF_GARAGE_DEVICE,
+    CONF_GARAGE_DEVICES,
+    CONF_INVERT_COVER_CONTROL,
+    CONF_INVERT_COVER_STATUS,
     CONF_REGION,
     CONF_SCAN_INTERVAL,
+    CONF_TRUST_COVER_STATUS,
     CONF_UID,
     DEFAULT_REGION,
     DEFAULT_SCAN_INTERVAL,
@@ -33,6 +40,7 @@ from .const import (
     MIN_SCAN_INTERVAL,
     REGION_ENDPOINTS,
 )
+from .garage import device_garage_options
 
 
 def _account_unique_id(uid: str) -> str:
@@ -94,6 +102,15 @@ class TuyaSharedCloudConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Configure one Tuya account's individually shared devices."""
 
     VERSION = 1
+
+    @staticmethod
+    @callback
+    @override
+    def async_get_options_flow(
+        config_entry: config_entries.ConfigEntry,
+    ) -> config_entries.OptionsFlow:
+        """Return the per-device garage-door options flow."""
+        return TuyaSharedCloudOptionsFlow()
 
     async def _validate(self, data: Mapping[str, Any]) -> int:
         client = TuyaCloudClient(
@@ -214,4 +231,96 @@ class TuyaSharedCloudConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             step_id="reconfigure",
             data_schema=_credentials_schema(user_input or entry.data),
             errors=errors,
+        )
+
+
+class TuyaSharedCloudOptionsFlow(OptionsFlowWithReload):
+    """Configure product quirks without changing account credentials."""
+
+    def __init__(self) -> None:
+        """Initialize the options flow."""
+        self._garage_device_id: str | None = None
+
+    async def async_step_init(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Select the shared garage-door device to configure."""
+        runtime_data = self.config_entry.runtime_data
+        coordinator = runtime_data.coordinator
+        choices = [
+            selector.SelectOptionDict(
+                value=device_id,
+                label=coordinator.devices[device_id].name,
+            )
+            for device_id in runtime_data.garage_profiles
+            if device_id in coordinator.devices
+        ]
+        if not choices:
+            return self.async_abort(reason="no_garage_devices")
+        if user_input is not None:
+            self._garage_device_id = user_input[CONF_GARAGE_DEVICE]
+            return await self.async_step_garage_device()
+
+        return self.async_show_form(
+            step_id="init",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_GARAGE_DEVICE): selector.SelectSelector(
+                        selector.SelectSelectorConfig(
+                            options=choices,
+                            mode=selector.SelectSelectorMode.DROPDOWN,
+                        )
+                    )
+                }
+            ),
+        )
+
+    async def async_step_garage_device(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Configure command and contact polarity for one garage door."""
+        device_id = self._garage_device_id
+        if device_id is None:
+            return await self.async_step_init()
+        runtime_data = self.config_entry.runtime_data
+        device = runtime_data.coordinator.devices.get(device_id)
+        if device is None or device_id not in runtime_data.garage_profiles:
+            return self.async_abort(reason="garage_device_unavailable")
+
+        current = device_garage_options(self.config_entry.options, device_id)
+        if user_input is not None:
+            all_devices = self.config_entry.options.get(CONF_GARAGE_DEVICES, {})
+            all_devices = dict(all_devices) if isinstance(all_devices, Mapping) else {}
+            all_devices[device_id] = dict(user_input)
+            return self.async_create_entry(
+                title="",
+                data={
+                    **self.config_entry.options,
+                    CONF_GARAGE_DEVICES: all_devices,
+                },
+            )
+
+        return self.async_show_form(
+            step_id="garage_device",
+            description_placeholders={"device_name": device.name},
+            data_schema=vol.Schema(
+                {
+                    vol.Required(
+                        CONF_INVERT_COVER_CONTROL,
+                        default=bool(current.get(CONF_INVERT_COVER_CONTROL, False)),
+                    ): bool,
+                    vol.Required(
+                        CONF_INVERT_COVER_STATUS,
+                        default=bool(current.get(CONF_INVERT_COVER_STATUS, False)),
+                    ): bool,
+                    vol.Required(
+                        CONF_TRUST_COVER_STATUS,
+                        default=bool(current.get(CONF_TRUST_COVER_STATUS, True)),
+                    ): bool,
+                    vol.Required(
+                        CONF_EXPOSE_TRIGGER_BUTTON,
+                        default=bool(current.get(CONF_EXPOSE_TRIGGER_BUTTON, True)),
+                    ): bool,
+                }
+            ),
         )

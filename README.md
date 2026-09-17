@@ -60,10 +60,19 @@ The integration maps every datapoint exposed by Tuya:
 | Read-only Boolean | Binary sensor |
 | Other read-only value | Sensor |
 
-Garage door devices with `door_control_1` additionally receive a garage
-`cover` entity whose physical state comes from `doorcontact_state`. The raw
-datapoint entities remain available, including close commands even when the
-physical controller is configured to ignore them.
+Garage door devices in Tuya category `ckmkzq` with a Boolean `switch_1`
+function additionally receive:
+
+- a garage `cover` controlled through the standard `switch_1` datapoint;
+- an optional stateless **Trigger door** button; and
+- a physical state derived from `doorcontact_state` only when that contact is
+  configured as trustworthy.
+
+The raw datapoint entities remain available, including `switch_1`,
+`door_control_1`, and close commands even when the physical controller is
+configured to ignore them. A successful Tuya API acknowledgement is not treated
+as a device-state change: entities update only after OpenMQ push or REST confirms
+the value.
 
 ## Installation with HACS
 
@@ -212,6 +221,35 @@ saving the entry:
 The integration uses Tuya's Smart Home OpenMQ endpoint and message encryption
 1.0. This is distinct from the similarly named custom OpenAPI endpoint under
 `/iot-03`. The integration does not silently fall back to polling-only mode.
+
+## Garage-door product options
+
+Tuya garage controllers from different manufacturers do not always use the
+same Boolean polarity, and some report a contact value that is inverted or does
+not change at all. Configure these quirks without editing YAML or code:
+
+1. Open **Settings → Devices & services**.
+2. Find **Tuya Shared Cloud**, open its menu, and select **Configure**.
+3. Choose the garage door.
+4. Set these options independently:
+
+| Option | Enable it when |
+| --- | --- |
+| **Invert open and close command values** | `switch_1=false` operates the door while `switch_1=true` does not, or open and close are otherwise reversed. |
+| **Invert the reported door-contact state** | The contact reliably changes but reports open as closed and closed as open. |
+| **Trust the reported door-contact state** | `doorcontact_state` reliably follows the physical door. Disable it if the value is stuck or inconsistent. |
+| **Create a stateless door trigger button** | You want one action that sends the configured open/trigger value without guessing the current state. |
+
+When trusted status is disabled, the cover deliberately reports an unknown,
+assumed state. This avoids showing a successful movement that never occurred.
+The stateless trigger button remains usable and sends exactly one command; it
+does not send an automatic second pulse and does not inspect the unreliable
+contact.
+
+Home Assistant's standard `cover.toggle` action is available for covers whose
+contact state is trustworthy. It is not a safe toggle mechanism when the device
+cannot report whether the physical door is open or closed; use the stateless
+trigger button for that hardware.
 
 ### Common configuration errors
 

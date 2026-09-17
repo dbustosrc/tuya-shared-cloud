@@ -71,4 +71,5 @@ class TuyaSharedRuntimeData:
 
     coordinator: Any
     functions: dict[str, dict[str, TuyaFunction]]
+    garage_profiles: dict[str, Any]
     push_client: Any

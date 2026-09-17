@@ -265,7 +265,9 @@ class TuyaOpenMQClient:
         client.on_message = self._mqtt_on_message
         client.on_subscribe = self._mqtt_on_subscribe
         if parsed.scheme in {"ssl", "mqtts", "tls"}:
-            client.tls_set()
+            # paho loads the operating system certificate store here. Keep that
+            # blocking filesystem work off Home Assistant's event loop.
+            await asyncio.to_thread(client.tls_set)
         self._mqtt_client = client
         port = parsed.port or (
             8883 if parsed.scheme in {"ssl", "mqtts", "tls"} else 1883

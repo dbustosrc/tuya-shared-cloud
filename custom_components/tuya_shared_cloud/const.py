@@ -12,6 +12,13 @@ CONF_REGION: Final = "region"
 CONF_UID: Final = "uid"
 CONF_SCAN_INTERVAL: Final = "scan_interval"
 
+CONF_GARAGE_DEVICE: Final = "garage_device"
+CONF_GARAGE_DEVICES: Final = "garage_devices"
+CONF_INVERT_COVER_CONTROL: Final = "invert_cover_control"
+CONF_INVERT_COVER_STATUS: Final = "invert_cover_status"
+CONF_TRUST_COVER_STATUS: Final = "trust_cover_status"
+CONF_EXPOSE_TRIGGER_BUTTON: Final = "expose_trigger_button"
+
 DEFAULT_REGION: Final = "us"
 # Cloud push is the primary update path. This interval only reconciles state in
 # case Tuya drops an event while the MQTT connection is being renewed.
@@ -36,6 +43,9 @@ REGION_ENDPOINTS: Final = {
     "in": "https://openapi.tuyain.com",
 }
 
+CATEGORY_GARAGE_DOOR: Final = "ckmkzq"
+
+DP_SWITCH_1: Final = "switch_1"
 DP_DOOR_CONTACT: Final = "doorcontact_state"
 DP_DOOR_CONTROL: Final = "door_control_1"
 DP_VOICE_CONTROL: Final = "voice_control_1"

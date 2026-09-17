@@ -46,5 +46,37 @@
       "reconfigure_successful": "The integration was reconfigured successfully.",
       "wrong_account": "The credentials belong to a different configured account."
     }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Configure a garage door",
+        "description": "Choose the shared garage-door device whose Tuya product quirks you want to configure.",
+        "data": {
+          "garage_device": "Garage door"
+        }
+      },
+      "garage_device": {
+        "title": "Configure {device_name}",
+        "description": "Command and contact polarity are independent. Disable trusted status when the physical contact does not change reliably; the cover will then remain unknown instead of reporting a false state.",
+        "data": {
+          "invert_cover_control": "Invert open and close command values",
+          "invert_cover_status": "Invert the reported door-contact state",
+          "trust_cover_status": "Trust the reported door-contact state",
+          "expose_trigger_button": "Create a stateless door trigger button"
+        }
+      }
+    },
+    "abort": {
+      "no_garage_devices": "No compatible shared garage-door devices were found.",
+      "garage_device_unavailable": "The selected garage-door device is no longer available."
+    }
+  },
+  "entity": {
+    "button": {
+      "door_trigger": {
+        "name": "Trigger door"
+      }
+    }
   }
 }
