@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.3.0 — 2026-09-17
+
+- Add a dedicated **Tuya Shared Cloud** service device for integration-level
+  diagnostics.
+- Move the existing Cloud push connectivity entity onto that service device and
+  add an independent REST polling health entity.
+- Add enabled timestamp, delivery-ratio, and REST-correction sensors, plus
+  optional detailed counters, polling duration, interval, and shared-device
+  count.
+- Count the initial REST reconciliation and failed attempts, and record the
+  latest attempt, success, failure, and duration without exposing credentials or
+  device values.
+- Keep diagnostic health entities available while a transport is down so they
+  show the failure instead of becoming unavailable.
+- Keep device entities available when REST fails but OpenMQ remains connected
+  and subscribed.
+- Add English and Spanish entity translations and expand standalone coverage.
 ## 1.2.0 — 2026-09-16
 
 - Correct garage-door control for Tuya category `ckmkzq` to use the standard

@@ -73,9 +73,52 @@
     }
   },
   "entity": {
+    "binary_sensor": {
+      "cloud_push": {
+        "name": "Push en la nube"
+      },
+      "rest_polling": {
+        "name": "Sondeo REST"
+      }
+    },
     "button": {
       "door_trigger": {
         "name": "Accionar puerta"
+      }
+    },
+    "sensor": {
+      "last_cloud_message": {
+        "name": "Último mensaje cloud"
+      },
+      "last_rest_poll": {
+        "name": "Último sondeo REST exitoso"
+      },
+      "push_delivery_ratio": {
+        "name": "Proporción de entrega por push"
+      },
+      "rest_corrections": {
+        "name": "Correcciones REST"
+      },
+      "cloud_messages": {
+        "name": "Mensajes cloud"
+      },
+      "ignored_cloud_messages": {
+        "name": "Mensajes cloud ignorados"
+      },
+      "rest_polling_runs": {
+        "name": "Ejecuciones de sondeo REST"
+      },
+      "rest_polling_failures": {
+        "name": "Fallos del sondeo REST"
+      },
+      "rest_polling_duration": {
+        "name": "Duración del último sondeo REST"
+      },
+      "rest_polling_interval": {
+        "name": "Intervalo de sondeo REST"
+      },
+      "shared_devices": {
+        "name": "Dispositivos compartidos"
       }
     }
   }

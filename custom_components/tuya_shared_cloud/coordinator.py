@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
@@ -63,7 +63,7 @@ class TuyaSharedCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]):
         self._suppress_reconciliation_metric_once = False
         self._last_push_by_datapoint: dict[tuple[str, str], float] = {}
         self.push_client: TuyaOpenMQClient | None = None
-        self.push_metrics: TuyaPushMetrics | None = None
+        self.push_metrics = TuyaPushMetrics()
 
     def attach_push_client(self, push_client: TuyaOpenMQClient) -> None:
         """Attach the primary cloud-push transport."""
@@ -119,6 +119,9 @@ class TuyaSharedCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]):
     async def _async_update_data(self) -> dict[str, dict[str, Any]]:
         """Reconcile shared inventory and authoritative per-device statuses."""
         poll_started = time.monotonic()
+        metrics = self.push_metrics
+        metrics.reconciliation_runs += 1
+        metrics.last_reconciliation_attempt_at = datetime.now(UTC)
         try:
             devices = await self.client.async_get_shared_devices(self.uid)
             statuses = await asyncio.gather(
@@ -127,9 +130,14 @@ class TuyaSharedCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]):
             for device, status in zip(devices, statuses, strict=True):
                 device.status = status
         except TuyaCloudAuthenticationError as err:
+            self._record_reconciliation_failure(poll_started)
             raise ConfigEntryAuthFailed from err
         except (TuyaCloudConnectionError, TuyaCloudError) as err:
+            self._record_reconciliation_failure(poll_started)
             raise UpdateFailed(str(err)) from err
+
+        metrics.last_reconciliation_success_at = datetime.now(UTC)
+        metrics.last_reconciliation_duration_seconds = time.monotonic() - poll_started
 
         updated = {device.device_id: device for device in devices}
         if set(updated) != set(self.devices) and not self._reload_requested:
@@ -148,30 +156,34 @@ class TuyaSharedCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]):
             self._last_push_by_datapoint,
             poll_started,
         )
-        metrics = self.push_metrics
-        if metrics is not None:
-            metrics.reconciliation_runs += 1
-            if self._baseline_loaded and not self._suppress_reconciliation_metric_once:
-                previous = self.data or {}
-                corrections = sum(
-                    previous.get(device_id, {}).get(code) != value
-                    for device_id, status in data.items()
-                    for code, value in status.items()
+        if self._baseline_loaded and not self._suppress_reconciliation_metric_once:
+            previous = self.data or {}
+            corrections = sum(
+                previous.get(device_id, {}).get(code) != value
+                for device_id, status in data.items()
+                for code, value in status.items()
+            )
+            metrics.reconciliation_corrections += corrections
+            if corrections:
+                _LOGGER.warning(
+                    "REST reconciliation corrected %s Tuya datapoint(s); "
+                    "OpenMQ connected=%s subscribed=%s push_ratio=%s",
+                    corrections,
+                    metrics.connected,
+                    metrics.subscribed,
+                    metrics.push_delivery_ratio,
                 )
-                metrics.reconciliation_corrections += corrections
-                if corrections:
-                    _LOGGER.warning(
-                        "REST reconciliation corrected %s Tuya datapoint(s); "
-                        "OpenMQ connected=%s subscribed=%s push_ratio=%s",
-                        corrections,
-                        metrics.connected,
-                        metrics.subscribed,
-                        metrics.push_delivery_ratio,
-                    )
         self._suppress_reconciliation_metric_once = False
         self._baseline_loaded = True
         self._resolve_pending_door_commands(data)
         return data
+
+    def _record_reconciliation_failure(self, poll_started: float) -> None:
+        """Record a failed REST reconciliation without exposing its details."""
+        metrics = self.push_metrics
+        metrics.reconciliation_failures += 1
+        metrics.last_reconciliation_failure_at = datetime.now(UTC)
+        metrics.last_reconciliation_duration_seconds = time.monotonic() - poll_started
 
     async def async_send_command(
         self,

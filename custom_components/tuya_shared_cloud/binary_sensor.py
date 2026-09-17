@@ -6,17 +6,18 @@ from homeassistant.components.binary_sensor import (
     BinarySensorDeviceClass,
     BinarySensorEntity,
 )
-from homeassistant.helpers.entity import EntityCategory
-from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DP_DOOR_CONTACT
-from .entity import TuyaSharedEntity
+from .entity import TuyaSharedDiagnosticEntity, TuyaSharedEntity
 
 
 async def async_setup_entry(hass, entry, async_add_entities) -> None:
-    """Set up Boolean statuses that are not writable functions."""
+    """Set up transport health and read-only Boolean datapoints."""
     coordinator = entry.runtime_data.coordinator
-    entities = [TuyaPushConnectivityBinarySensor(coordinator, entry.entry_id)]
+    entities = [
+        TuyaPushConnectivityBinarySensor(coordinator, entry.entry_id),
+        TuyaRestConnectivityBinarySensor(coordinator, entry.entry_id),
+    ]
     for device_id, status in (coordinator.data or {}).items():
         device = coordinator.devices.get(device_id)
         if device is None:
@@ -30,30 +31,25 @@ async def async_setup_entry(hass, entry, async_add_entities) -> None:
     async_add_entities(entities)
 
 
-class TuyaPushConnectivityBinarySensor(CoordinatorEntity, BinarySensorEntity):
+class TuyaPushConnectivityBinarySensor(TuyaSharedDiagnosticEntity, BinarySensorEntity):
     """Show whether Tuya acknowledged the OpenMQ subscription."""
 
     _attr_device_class = BinarySensorDeviceClass.CONNECTIVITY
-    _attr_entity_category = EntityCategory.DIAGNOSTIC
-    _attr_has_entity_name = True
-    _attr_name = "Cloud push"
+    _attr_translation_key = "cloud_push"
 
     def __init__(self, coordinator, entry_id: str) -> None:
-        super().__init__(coordinator)
-        self._attr_unique_id = f"{entry_id}_cloud_push"
+        super().__init__(coordinator, entry_id, "cloud_push")
 
     @property
     def is_on(self) -> bool:
         """Return true only after the broker acknowledges subscriptions."""
         metrics = self.coordinator.push_metrics
-        return bool(metrics and metrics.connected and metrics.subscribed)
+        return metrics.connected and metrics.subscribed
 
     @property
     def extra_state_attributes(self):
-        """Expose evidence that push is carrying state changes."""
+        """Retain the existing summary attributes for compatibility."""
         metrics = self.coordinator.push_metrics
-        if metrics is None:
-            return {}
         ratio = metrics.push_delivery_ratio
         return {
             "messages_received": metrics.messages_received,
@@ -63,6 +59,21 @@ class TuyaPushConnectivityBinarySensor(CoordinatorEntity, BinarySensorEntity):
             "reconciliation_corrections": metrics.reconciliation_corrections,
             "delivery_ratio": None if ratio is None else round(ratio, 4),
         }
+
+
+class TuyaRestConnectivityBinarySensor(TuyaSharedDiagnosticEntity, BinarySensorEntity):
+    """Show whether the most recent REST reconciliation succeeded."""
+
+    _attr_device_class = BinarySensorDeviceClass.CONNECTIVITY
+    _attr_translation_key = "rest_polling"
+
+    def __init__(self, coordinator, entry_id: str) -> None:
+        super().__init__(coordinator, entry_id, "rest_polling")
+
+    @property
+    def is_on(self) -> bool:
+        """Return the health of the latest coordinator refresh."""
+        return self.coordinator.last_update_success
 
 
 class TuyaSharedBinarySensor(TuyaSharedEntity, BinarySensorEntity):

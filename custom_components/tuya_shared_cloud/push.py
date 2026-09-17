@@ -16,6 +16,7 @@ import time
 import uuid
 from collections.abc import Callable, Collection, Mapping
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import Any
 from urllib.parse import urlsplit
 
@@ -61,7 +62,13 @@ class TuyaPushMetrics:
     ignored_messages: int = 0
     reconciliation_runs: int = 0
     reconciliation_corrections: int = 0
+    reconciliation_failures: int = 0
     last_message_monotonic: float | None = None
+    last_message_at: datetime | None = None
+    last_reconciliation_attempt_at: datetime | None = None
+    last_reconciliation_success_at: datetime | None = None
+    last_reconciliation_failure_at: datetime | None = None
+    last_reconciliation_duration_seconds: float | None = None
 
     @property
     def push_delivery_ratio(self) -> float | None:
@@ -176,6 +183,7 @@ class TuyaOpenMQClient:
         on_state: Callable[[bool, bool], None],
         *,
         mqtt_factory: Callable[..., Any] | None = None,
+        metrics: TuyaPushMetrics | None = None,
     ) -> None:
         """Initialize the OpenMQ transport."""
         self._api = api
@@ -194,7 +202,7 @@ class TuyaOpenMQClient:
         self._renew_task: asyncio.Task | None = None
         self._retry_task: asyncio.Task | None = None
         self._restart_lock = asyncio.Lock()
-        self.metrics = TuyaPushMetrics()
+        self.metrics = metrics or TuyaPushMetrics()
         self.link_id = f"tuya-shared-cloud.{uuid.uuid4()}"
 
     async def async_start(self) -> None:
@@ -382,6 +390,7 @@ class TuyaOpenMQClient:
     def _dispatch_message(self, payload: dict[str, Any]) -> None:
         self.metrics.messages_received += 1
         self.metrics.last_message_monotonic = time.monotonic()
+        self.metrics.last_message_at = datetime.now(UTC)
         self._on_message_callback(payload)
 
     def _mark_ready(self) -> None:

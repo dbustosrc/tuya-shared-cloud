@@ -218,6 +218,19 @@ class PushTests(unittest.TestCase):
         )
         self.assertEqual(metrics.push_delivery_ratio, 0.9)
 
+    def test_transport_uses_injected_metrics(self):
+        metrics = push.TuyaPushMetrics(reconciliation_runs=1)
+        client = push.TuyaOpenMQClient(
+            _FakeAPI(),
+            "uid",
+            lambda payload: None,
+            lambda connected, subscribed: None,
+            mqtt_factory=_FakeMQTTClient,
+            metrics=metrics,
+        )
+        self.assertIs(client.metrics, metrics)
+        self.assertEqual(client.metrics.reconciliation_runs, 1)
+
     def test_new_push_wins_over_in_flight_poll(self):
         polled = {"shared": {"doorcontact_state": False, "switch_1": False}}
         current = {"shared": {"doorcontact_state": True, "switch_1": False}}
@@ -322,6 +335,8 @@ class PushTests(unittest.TestCase):
             await asyncio.sleep(0)
             self.assertEqual(received[0]["data"], inner)
             self.assertEqual(client.metrics.messages_received, 1)
+            self.assertIsNotNone(client.metrics.last_message_at)
+            self.assertIsNotNone(client.metrics.last_message_at.tzinfo)
             await client.async_stop()
 
         asyncio.run(run())

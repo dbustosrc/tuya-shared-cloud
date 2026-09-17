@@ -38,14 +38,31 @@ retries failed connections with bounded exponential backoff. If push is
 temporarily unavailable, entities remain usable and the slow REST
 reconciliation continues.
 
-Home Assistant's **Download diagnostics** output contains only counters and
-connection state, never credentials or device values. In particular:
+Home Assistant creates a **Tuya Shared Cloud** service device for integration
+health. Its enabled diagnostic entities show:
+
+- **Cloud push**, which is connected only after Tuya acknowledges every OpenMQ
+  subscription;
+- **REST polling**, which reflects the result of the latest reconciliation;
+- the last cloud-message and successful REST-poll timestamps;
+- the push delivery ratio; and
+- the number of state corrections recovered by REST.
+
+Additional counters, failure count, polling duration, configured interval, and
+shared-device count are available as diagnostic entities disabled by default.
+They can be enabled from the service device when deeper troubleshooting is
+needed. Health entities deliberately remain available when one transport fails,
+so they can report the outage instead of becoming unavailable with it.
+
+Home Assistant's **Download diagnostics** output contains only counters,
+timestamps, and connection state, never credentials or device values. In
+particular:
 
 - `subscribed` proves that the broker acknowledged the source-topic
-  subscription.
-- `datapoints_applied` counts state changes delivered by push.
-- `reconciliation_corrections` counts state changes that the slow REST pass had
-  to recover.
+  subscription;
+- `datapoints_applied` counts state changes delivered by push;
+- `rest_reconciliation.corrections` counts state changes that the slow REST pass
+  had to recover; and
 - `delivery_ratio` is the proportion of observed changes delivered by push.
 
 ## Entities

@@ -73,9 +73,52 @@
     }
   },
   "entity": {
+    "binary_sensor": {
+      "cloud_push": {
+        "name": "Cloud push"
+      },
+      "rest_polling": {
+        "name": "REST polling"
+      }
+    },
     "button": {
       "door_trigger": {
         "name": "Trigger door"
+      }
+    },
+    "sensor": {
+      "last_cloud_message": {
+        "name": "Last cloud message"
+      },
+      "last_rest_poll": {
+        "name": "Last successful REST poll"
+      },
+      "push_delivery_ratio": {
+        "name": "Push delivery ratio"
+      },
+      "rest_corrections": {
+        "name": "REST corrections"
+      },
+      "cloud_messages": {
+        "name": "Cloud messages"
+      },
+      "ignored_cloud_messages": {
+        "name": "Ignored cloud messages"
+      },
+      "rest_polling_runs": {
+        "name": "REST polling runs"
+      },
+      "rest_polling_failures": {
+        "name": "REST polling failures"
+      },
+      "rest_polling_duration": {
+        "name": "Last REST polling duration"
+      },
+      "rest_polling_interval": {
+        "name": "REST polling interval"
+      },
+      "shared_devices": {
+        "name": "Shared devices"
       }
     }
   }

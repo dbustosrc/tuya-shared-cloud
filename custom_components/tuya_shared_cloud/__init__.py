@@ -92,6 +92,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: TuyaSharedConfigEntry) -
         entry.data[CONF_UID],
         coordinator.async_handle_push_payload,
         coordinator.async_handle_push_state,
+        metrics=coordinator.push_metrics,
     )
     coordinator.attach_push_client(push_client)
     entry.runtime_data = TuyaSharedRuntimeData(
