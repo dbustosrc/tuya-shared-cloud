@@ -37,6 +37,25 @@ class TuyaMQPermissionError(TuyaMQConfigurationError):
     """Raised when the cloud project lacks device-status notification access."""
 
 
+def cloud_error_reason(error: BaseException) -> str:
+    """Classify failures without retaining request URLs or remote messages."""
+    if isinstance(error, TuyaCloudAuthenticationError):
+        return "authentication"
+    if isinstance(error, TuyaMQPermissionError):
+        return "permission"
+    if isinstance(error, TuyaMQConfigurationError):
+        return "configuration"
+    if isinstance(error, TimeoutError) or isinstance(error.__cause__, TimeoutError):
+        return "timeout"
+    if isinstance(error, (TuyaCloudConnectionError, OSError)):
+        return "connection"
+    if isinstance(error, (ValueError, TypeError)):
+        return "configuration"
+    if isinstance(error, TuyaCloudError):
+        return "api"
+    return "unexpected"
+
+
 AUTH_ERROR_CODES = {"1004", "1010", "1011", "1012", "1109"}
 EMPTY_SHA256 = hashlib.sha256(b"").hexdigest()
 

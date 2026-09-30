@@ -35,6 +35,15 @@ async def async_get_config_entry_diagnostics(
             "ignored_messages": metrics.ignored_messages,
             "delivery_ratio": metrics.push_delivery_ratio,
             "last_message_at": _serialize_timestamp(metrics.last_message_at),
+            "connection_attempts": metrics.connection_attempts,
+            "connection_failures": metrics.connection_failures,
+            "last_failure_at": _serialize_timestamp(metrics.last_failure_at),
+            "last_error_reason": metrics.last_error_reason,
+            "renewing": metrics.renewing,
+            "renewal_attempts": metrics.renewal_attempts,
+            "renewal_failures": metrics.renewal_failures,
+            "last_renewal_at": _serialize_timestamp(metrics.last_renewal_at),
+            "last_renewal_result": metrics.last_renewal_result,
         },
         "rest_reconciliation": {
             "healthy": coordinator.last_update_success,
@@ -51,5 +60,6 @@ async def async_get_config_entry_diagnostics(
                 metrics.last_reconciliation_failure_at
             ),
             "last_duration_seconds": metrics.last_reconciliation_duration_seconds,
+            "last_error_reason": metrics.last_reconciliation_error_reason,
         },
     }

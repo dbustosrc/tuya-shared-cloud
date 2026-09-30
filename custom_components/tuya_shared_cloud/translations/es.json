@@ -63,7 +63,8 @@
           "invert_cover_control": "Invertir los valores de los comandos abrir y cerrar",
           "invert_cover_status": "Invertir el estado informado por el contacto de puerta",
           "trust_cover_status": "Confiar en el estado informado por el contacto de puerta",
-          "expose_trigger_button": "Crear un botón de accionamiento sin estado"
+          "expose_trigger_button": "Crear un botón de accionamiento sin estado",
+          "allow_remote_close": "Permitir cierre desde el cover"
         }
       }
     },
@@ -72,8 +73,58 @@
       "garage_device_unavailable": "El dispositivo de puerta de garaje seleccionado ya no está disponible."
     }
   },
+  "exceptions": {
+    "remote_close_disabled": {
+      "message": "El cierre remoto está desactivado para esta puerta."
+    },
+    "command_authentication_failed": {
+      "message": "Tuya rechazó la autenticación. Vuelve a autenticar la integración."
+    },
+    "command_failed": {
+      "message": "Tuya no pudo aceptar el comando ({reason})."
+    }
+  },
   "entity": {
+    "switch": {
+      "switch_1": {
+        "name": "Relé"
+      },
+      "voice_control_1": {
+        "name": "Control por voz"
+      }
+    },
+    "number": {
+      "countdown_1": {
+        "name": "Cuenta regresiva de la puerta"
+      },
+      "tr_timecon": {
+        "name": "Tiempo de recorrido"
+      },
+      "countdown_alarm": {
+        "name": "Retardo de alarma por puerta abierta"
+      }
+    },
+    "select": {
+      "door_control_1": {
+        "name": "Control de puerta",
+        "state": {
+          "open": "Abrir",
+          "close": "Cerrar"
+        }
+      },
+      "door_state_1": {
+        "name": "Alarma del controlador",
+        "state": {
+          "none": "Sin alarma reportada",
+          "unclosed_time": "Tiempo prolongado sin cerrar",
+          "close_time_alarm": "Alarma de tiempo de cierre"
+        }
+      }
+    },
     "binary_sensor": {
+      "doorcontact_state": {
+        "name": "Contacto de puerta"
+      },
       "cloud_push": {
         "name": "Push en la nube"
       },
@@ -82,11 +133,22 @@
       }
     },
     "button": {
+      "door_open_trigger": {
+        "name": "Solicitar apertura"
+      },
       "door_trigger": {
         "name": "Accionar puerta"
       }
     },
     "sensor": {
+      "door_state_1": {
+        "name": "Alarma del controlador",
+        "state": {
+          "none": "Sin alarma reportada",
+          "unclosed_time": "Tiempo prolongado sin cerrar",
+          "close_time_alarm": "Alarma de tiempo de cierre"
+        }
+      },
       "last_cloud_message": {
         "name": "Último mensaje cloud"
       },

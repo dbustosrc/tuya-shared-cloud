@@ -18,6 +18,7 @@ CONF_INVERT_COVER_CONTROL: Final = "invert_cover_control"
 CONF_INVERT_COVER_STATUS: Final = "invert_cover_status"
 CONF_TRUST_COVER_STATUS: Final = "trust_cover_status"
 CONF_EXPOSE_TRIGGER_BUTTON: Final = "expose_trigger_button"
+CONF_ALLOW_REMOTE_CLOSE: Final = "allow_remote_close"
 
 DEFAULT_REGION: Final = "us"
 # Cloud push is the primary update path. This interval only reconciles state in
@@ -49,6 +50,8 @@ DP_SWITCH_1: Final = "switch_1"
 DP_DOOR_CONTACT: Final = "doorcontact_state"
 DP_DOOR_CONTROL: Final = "door_control_1"
 DP_VOICE_CONTROL: Final = "voice_control_1"
+DP_DOOR_ALARM: Final = "door_state_1"
+DOOR_ALARM_OPTIONS: Final = ("none", "unclosed_time", "close_time_alarm")
 
 DOOR_OPEN: Final = "open"
 DOOR_CLOSE: Final = "close"
@@ -57,9 +60,9 @@ PENDING_COMMAND_TIMEOUT: Final = 90
 
 DP_NAMES: Final = {
     "switch_1": "Relay",
-    "countdown_1": "Relay countdown",
+    "countdown_1": "Door countdown",
     "doorcontact_state": "Door contact",
-    "tr_timecon": "Relay activation time",
+    "tr_timecon": "Door travel time",
     "countdown_alarm": "Open-door alarm delay",
     "door_control_1": "Door control",
     "voice_control_1": "Voice control",

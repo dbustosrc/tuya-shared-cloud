@@ -4,7 +4,12 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from .coordinator import TuyaSharedCoordinator
+    from .garage import GarageDoorProfile
+    from .push import TuyaOpenMQClient
 
 
 @dataclass(frozen=True, slots=True)
@@ -69,7 +74,7 @@ class TuyaSharedDevice:
 class TuyaSharedRuntimeData:
     """Runtime objects owned by one account config entry."""
 
-    coordinator: Any
+    coordinator: TuyaSharedCoordinator
     functions: dict[str, dict[str, TuyaFunction]]
-    garage_profiles: dict[str, Any]
-    push_client: Any
+    garage_profiles: dict[str, GarageDoorProfile]
+    push_client: TuyaOpenMQClient

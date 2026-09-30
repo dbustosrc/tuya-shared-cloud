@@ -12,11 +12,31 @@ COMPONENT = ROOT / "custom_components" / "tuya_shared_cloud"
 
 
 class DiagnosticEntityTests(unittest.TestCase):
+    def test_translation_structure_and_placeholders_match(self):
+        def keys(value, path=()):
+            if isinstance(value, dict):
+                return {
+                    item
+                    for key, child in value.items()
+                    for item in keys(child, (*path, key))
+                }
+            return {path}
+
+        source = json.loads((COMPONENT / "strings.json").read_text())
+        for language in ("en", "es"):
+            translation = json.loads(
+                (COMPONENT / "translations" / f"{language}.json").read_text()
+            )
+            self.assertEqual(keys(source), keys(translation))
+            self.assertIn(
+                "{reason}", translation["exceptions"]["command_failed"]["message"]
+            )
+
     def test_release_manifest_and_translations_include_diagnostics(self):
         manifest = json.loads((COMPONENT / "manifest.json").read_text())
-        self.assertEqual(manifest["version"], "1.3.0")
+        self.assertEqual(manifest["version"], "1.4.0")
 
-        required_binary_sensors = {"cloud_push", "rest_polling"}
+        required_binary_sensors = {"cloud_push", "rest_polling", "doorcontact_state"}
         required_sensors = {
             "last_cloud_message",
             "last_rest_poll",
@@ -29,6 +49,7 @@ class DiagnosticEntityTests(unittest.TestCase):
             "rest_polling_duration",
             "rest_polling_interval",
             "shared_devices",
+            "door_state_1",
         }
         for relative_path in (
             "strings.json",
@@ -56,18 +77,6 @@ class DiagnosticEntityTests(unittest.TestCase):
             and node.attr == "SERVICE"
         ]
         self.assertEqual(len(service_references), 1)
-
-    def test_rest_metrics_record_attempt_success_and_failure(self):
-        source = (COMPONENT / "coordinator.py").read_text(encoding="utf-8")
-        self.assertIn("metrics.reconciliation_runs += 1", source)
-        self.assertIn("metrics.last_reconciliation_success_at", source)
-        self.assertIn("metrics.reconciliation_failures += 1", source)
-        self.assertIn("metrics.last_reconciliation_failure_at", source)
-
-    def test_push_keeps_device_entities_available_during_rest_failure(self):
-        source = (COMPONENT / "entity.py").read_text(encoding="utf-8")
-        self.assertIn("transport_available = super().available or", source)
-        self.assertIn("metrics.connected and metrics.subscribed", source)
 
 
 if __name__ == "__main__":

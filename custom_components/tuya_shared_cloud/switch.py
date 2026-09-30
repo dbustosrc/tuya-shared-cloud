@@ -5,7 +5,7 @@ from __future__ import annotations
 from homeassistant.components.switch import SwitchEntity
 from homeassistant.const import EntityCategory
 
-from .const import DP_VOICE_CONTROL
+from .const import DP_SWITCH_1, DP_VOICE_CONTROL
 from .entity import TuyaSharedFunctionEntity
 
 
@@ -29,6 +29,12 @@ class TuyaSharedSwitch(TuyaSharedFunctionEntity, SwitchEntity):
         super().__init__(coordinator, device, function)
         if function.code == DP_VOICE_CONTROL:
             self._attr_entity_category = EntityCategory.CONFIG
+        elif (
+            function.code == DP_SWITCH_1
+            and device.device_id in coordinator.garage_profiles
+        ):
+            self._attr_entity_category = EntityCategory.DIAGNOSTIC
+            self._attr_entity_registry_enabled_default = False
 
     @property
     def is_on(self) -> bool | None:

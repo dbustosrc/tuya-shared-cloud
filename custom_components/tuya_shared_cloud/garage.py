@@ -12,6 +12,7 @@ from typing import Any
 
 from .const import (
     CATEGORY_GARAGE_DOOR,
+    CONF_ALLOW_REMOTE_CLOSE,
     CONF_EXPOSE_TRIGGER_BUTTON,
     CONF_GARAGE_DEVICES,
     CONF_INVERT_COVER_CONTROL,
@@ -34,11 +35,14 @@ class GarageDoorProfile:
     invert_status: bool = False
     trust_status: bool = True
     expose_trigger_button: bool = True
+    allow_remote_close: bool = True
 
     def command_value(self, command: str) -> bool:
         """Map a Home Assistant open/close command to Tuya's Boolean value."""
         if command not in (DOOR_OPEN, DOOR_CLOSE):
             raise ValueError(f"Unsupported garage-door command: {command}")
+        if command == DOOR_CLOSE and not self.allow_remote_close:
+            raise ValueError("Remote closing is disabled for this garage door")
         value = command == DOOR_OPEN
         return not value if self.invert_control else value
 
@@ -86,5 +90,6 @@ def build_garage_profiles(
             expose_trigger_button=bool(
                 configured.get(CONF_EXPOSE_TRIGGER_BUTTON, True)
             ),
+            allow_remote_close=bool(configured.get(CONF_ALLOW_REMOTE_CLOSE, True)),
         )
     return profiles

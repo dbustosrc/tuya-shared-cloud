@@ -12,6 +12,7 @@ import types
 import unittest
 from pathlib import Path
 from typing import ClassVar
+from unittest.mock import patch
 
 from cryptography.hazmat.primitives import padding
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
@@ -139,6 +140,103 @@ class _FakeAPI:
 
 
 class PushTests(unittest.TestCase):
+    def test_failed_renewal_retries_with_old_subscription_still_active(self):
+        class FailingAPI(_FakeAPI):
+            fail_once = False
+
+            async def async_get_mq_config(self, uid, link_id):
+                if self.fail_once:
+                    self.fail_once = False
+                    raise api.TuyaCloudConnectionError("private URL and credentials")
+                return await super().async_get_mq_config(uid, link_id)
+
+        async def run():
+            cloud = FailingAPI()
+            client = push.TuyaOpenMQClient(
+                cloud,
+                "uid",
+                lambda payload: None,
+                lambda *args: None,
+                mqtt_factory=_FakeMQTTClient,
+            )
+            await client.async_start()
+            cloud.fail_once = True
+            with patch.object(push, "PUSH_RETRY_MIN", 0):
+                with self.assertLogs(push._LOGGER, level="WARNING") as captured:
+                    await client._async_renew_after(0)
+                self.assertTrue(client.metrics.subscribed)
+                self.assertTrue(client.metrics.renewing)
+                await client._retry_task
+            self.assertEqual(client.metrics.renewal_attempts, 2)
+            self.assertEqual(client.metrics.renewal_failures, 1)
+            self.assertEqual(client.metrics.last_renewal_result, "success")
+            self.assertFalse(client.metrics.renewing)
+            self.assertNotIn("private URL", repr(captured.output))
+            await client.async_stop()
+
+        asyncio.run(run())
+
+    def test_disconnect_retries_and_unload_cancels_background_tasks(self):
+        async def run():
+            cloud = _FakeAPI()
+            client = push.TuyaOpenMQClient(
+                cloud,
+                "uid",
+                lambda payload: None,
+                lambda *args: None,
+                mqtt_factory=_FakeMQTTClient,
+            )
+            await client.async_start()
+            mqtt_client = client._mqtt_client
+            with patch.object(push, "PUSH_RETRY_MIN", 0):
+                mqtt_client.on_disconnect(mqtt_client, None, None, _FakeReason(), None)
+                await asyncio.sleep(0)
+                retry_task = client._retry_task
+                self.assertFalse(client.metrics.subscribed)
+                await retry_task
+            self.assertEqual(len(cloud.calls), 2)
+            self.assertTrue(client.metrics.subscribed)
+            renewal_task = client._renew_task
+            await client.async_stop()
+            self.assertTrue(renewal_task.done())
+            self.assertFalse(client.running)
+            self.assertIsNone(client._retry_task)
+            self.assertIsNone(client._mqtt_client)
+
+        asyncio.run(run())
+
+    def test_partial_subscription_failure_never_marks_push_healthy(self):
+        class MultiTopicAPI(_FakeAPI):
+            async def async_get_mq_config(self, uid, link_id):
+                config = await super().async_get_mq_config(uid, link_id)
+                config["source_topic"] = ["cloud/accepted", "cloud/rejected"]
+                return config
+
+        class RejectedClient(_FakeMQTTClient):
+            def subscribe(self, topic):
+                if topic == "cloud/rejected":
+                    return 1, 0
+                return super().subscribe(topic)
+
+        async def run():
+            client = push.TuyaOpenMQClient(
+                MultiTopicAPI(),
+                "uid",
+                lambda payload: None,
+                lambda *args: None,
+                mqtt_factory=RejectedClient,
+            )
+            with (
+                patch.object(push, "PUSH_CONNECT_TIMEOUT", 0.01),
+                self.assertRaises(TimeoutError),
+            ):
+                await client.async_start()
+            self.assertFalse(client.metrics.subscribed)
+            self.assertEqual(client.metrics.last_error_reason, "subscription")
+            await client.async_stop()
+
+        asyncio.run(run())
+
     def test_reconciliation_is_slow_by_default(self):
         self.assertGreaterEqual(const.DEFAULT_SCAN_INTERVAL, 300)
         manifest = json.loads((COMPONENT / "manifest.json").read_text())

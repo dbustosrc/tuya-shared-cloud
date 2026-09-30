@@ -7,6 +7,7 @@ from homeassistant.components.cover import (
     CoverEntity,
     CoverEntityFeature,
 )
+from homeassistant.exceptions import HomeAssistantError
 
 from .const import DOOR_CLOSE, DOOR_OPEN, DP_DOOR_CONTACT
 from .entity import TuyaSharedEntity
@@ -30,12 +31,14 @@ class TuyaSharedGarageCover(TuyaSharedEntity, CoverEntity):
     """Garage door abstraction backed by switch_1 and doorcontact_state."""
 
     _attr_device_class = CoverDeviceClass.GARAGE
-    _attr_supported_features = CoverEntityFeature.OPEN | CoverEntityFeature.CLOSE
 
     def __init__(self, coordinator, device, profile) -> None:
         """Initialize the garage cover."""
         super().__init__(coordinator, device, "garage_door")
         self.profile = profile
+        self._attr_supported_features = CoverEntityFeature.OPEN
+        if profile.allow_remote_close:
+            self._attr_supported_features |= CoverEntityFeature.CLOSE
         self._attr_name = None
         self._attr_icon = None
         self._attr_assumed_state = not profile.trust_status
@@ -74,7 +77,12 @@ class TuyaSharedGarageCover(TuyaSharedEntity, CoverEntity):
         )
 
     async def async_close_cover(self, **kwargs) -> None:
-        """Send the supported close command even if the actuator ignores it."""
+        """Close only when the configured hardware supports remote closing."""
+        if not self.profile.allow_remote_close:
+            raise HomeAssistantError(
+                translation_domain="tuya_shared_cloud",
+                translation_key="remote_close_disabled",
+            )
         await self.coordinator.async_send_command(
             self.device_id,
             self.profile.control_code,

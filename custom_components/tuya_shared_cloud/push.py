@@ -26,7 +26,7 @@ from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from paho.mqtt import client as mqtt
 
-from .api import TuyaCloudClient
+from .api import TuyaCloudClient, TuyaCloudError, cloud_error_reason
 from .const import (
     PUSH_BIZCODE_OFFLINE,
     PUSH_BIZCODE_ONLINE,
@@ -69,6 +69,16 @@ class TuyaPushMetrics:
     last_reconciliation_success_at: datetime | None = None
     last_reconciliation_failure_at: datetime | None = None
     last_reconciliation_duration_seconds: float | None = None
+    last_reconciliation_error_reason: str | None = None
+    connection_attempts: int = 0
+    connection_failures: int = 0
+    last_failure_at: datetime | None = None
+    last_error_reason: str | None = None
+    renewing: bool = False
+    renewal_attempts: int = 0
+    renewal_failures: int = 0
+    last_renewal_at: datetime | None = None
+    last_renewal_result: str | None = None
 
     @property
     def push_delivery_ratio(self) -> float | None:
@@ -197,6 +207,7 @@ class TuyaOpenMQClient:
         self._encrypted_version = "1.0"
         self._topics: tuple[str, ...] = ()
         self._pending_subscriptions: set[int] = set()
+        self._connection_error_reason: str | None = None
         self._ready_event = asyncio.Event()
         self._running = False
         self._renew_task: asyncio.Task | None = None
@@ -205,13 +216,18 @@ class TuyaOpenMQClient:
         self.metrics = metrics or TuyaPushMetrics()
         self.link_id = f"tuya-shared-cloud.{uuid.uuid4()}"
 
+    @property
+    def running(self) -> bool:
+        """Return whether the transport is active rather than being unloaded."""
+        return self._running
+
     async def async_start(self) -> None:
         """Start OpenMQ and wait until the broker confirms subscriptions."""
         self._loop = asyncio.get_running_loop()
         self._running = True
         try:
             await self._async_connect_new()
-        except Exception:
+        except (TuyaCloudError, OSError, ValueError, TypeError):
             self._schedule_retry()
             raise
 
@@ -242,6 +258,32 @@ class TuyaOpenMQClient:
             await self._async_connect_new()
 
     async def _async_connect_new(self) -> None:
+        """Record safe connection and renewal outcomes for every attempt."""
+        self._connection_error_reason = None
+        metrics = self.metrics
+        metrics.connection_attempts += 1
+        if metrics.renewing:
+            metrics.renewal_attempts += 1
+            metrics.last_renewal_at = datetime.now(UTC)
+            metrics.last_renewal_result = "pending"
+        try:
+            await self._async_connect()
+        except Exception as err:
+            metrics.connection_failures += 1
+            metrics.last_failure_at = datetime.now(UTC)
+            metrics.last_error_reason = (
+                self._connection_error_reason or cloud_error_reason(err)
+            )
+            if metrics.renewing:
+                metrics.renewal_failures += 1
+                metrics.last_renewal_result = "failed"
+            raise
+        else:
+            if metrics.renewing:
+                metrics.last_renewal_result = "success"
+                metrics.renewing = False
+
+    async def _async_connect(self) -> None:
         config = await self._api.async_get_mq_config(self._uid, self.link_id)
         topics = self._extract_topics(config["source_topic"])
         if not topics:
@@ -304,11 +346,15 @@ class TuyaOpenMQClient:
     async def _async_renew_after(self, delay: int) -> None:
         try:
             await asyncio.sleep(delay)
+            self.metrics.renewing = True
             await self.async_restart()
         except asyncio.CancelledError:
             raise
-        except Exception:
-            _LOGGER.exception("Unable to renew Tuya OpenMQ credentials")
+        except (TuyaCloudError, OSError, ValueError, TypeError):
+            _LOGGER.warning(
+                "Unable to renew Tuya OpenMQ credentials (%s); retrying",
+                self.metrics.last_error_reason,
+            )
             self._schedule_retry()
 
     def _schedule_retry(self) -> None:
@@ -320,14 +366,21 @@ class TuyaOpenMQClient:
 
     async def _async_retry_loop(self) -> None:
         delay = PUSH_RETRY_MIN
-        while self._running and not self.metrics.subscribed:
+        while self._running and (self.metrics.renewing or not self.metrics.subscribed):
             await asyncio.sleep(delay)
+            if not self._running or (
+                self.metrics.subscribed and not self.metrics.renewing
+            ):
+                return
             try:
                 await self.async_restart()
             except asyncio.CancelledError:
                 raise
-            except Exception:
-                _LOGGER.exception("Unable to connect Tuya OpenMQ; retrying")
+            except (TuyaCloudError, OSError, ValueError, TypeError):
+                _LOGGER.warning(
+                    "Unable to connect Tuya OpenMQ (%s); retrying",
+                    self.metrics.last_error_reason,
+                )
                 delay = min(delay * 2, PUSH_RETRY_MAX)
             else:
                 return
@@ -338,14 +391,18 @@ class TuyaOpenMQClient:
         if client is not self._mqtt_client:
             return
         if self._reason_code_value(reason_code) != 0:
+            self._connection_error_reason = "connection_rejected"
             self._call_soon(self._set_state, False, False)
             return
+        self._connection_error_reason = None
         self._call_soon(self._set_state, True, False)
         self._pending_subscriptions.clear()
         for topic in self._topics:
             result, mid = client.subscribe(topic)
             if result == mqtt.MQTT_ERR_SUCCESS:
                 self._pending_subscriptions.add(mid)
+            else:
+                self._connection_error_reason = "subscription"
 
     def _mqtt_on_subscribe(
         self, client, userdata, mid, reason_code_list, properties
@@ -356,10 +413,13 @@ class TuyaOpenMQClient:
             bool(getattr(reason, "is_failure", False)) for reason in reason_code_list
         )
         if failed:
+            self._connection_error_reason = "subscription"
             self._call_soon(self._set_state, True, False)
             return
+        if mid not in self._pending_subscriptions:
+            return
         self._pending_subscriptions.discard(mid)
-        if not self._pending_subscriptions:
+        if not self._pending_subscriptions and self._connection_error_reason is None:
             self._call_soon(self._mark_ready)
 
     def _mqtt_on_disconnect(
@@ -367,7 +427,16 @@ class TuyaOpenMQClient:
     ) -> None:
         if client is not self._mqtt_client:
             return
-        self._call_soon(self._set_state, False, False)
+        self._call_soon(self._handle_disconnect, client)
+
+    def _handle_disconnect(self, client) -> None:
+        """Let Paho reconnect, with fresh-credential retries if it cannot."""
+        if client is not self._mqtt_client or not self._running:
+            return
+        self.metrics.last_failure_at = datetime.now(UTC)
+        self.metrics.last_error_reason = "connection"
+        self._set_state(False, False)
+        self._schedule_retry()
 
     def _mqtt_on_message(self, client, userdata, message) -> None:
         if client is not self._mqtt_client:
@@ -383,15 +452,22 @@ class TuyaOpenMQClient:
             binascii.Error,
             InvalidTag,
         ):
-            _LOGGER.exception("Unable to decode a Tuya OpenMQ message")
+            self._call_soon(self._record_decode_failure)
             return
         self._call_soon(self._dispatch_message, payload)
 
     def _dispatch_message(self, payload: dict[str, Any]) -> None:
+        if not self._running:
+            return
         self.metrics.messages_received += 1
         self.metrics.last_message_monotonic = time.monotonic()
         self.metrics.last_message_at = datetime.now(UTC)
         self._on_message_callback(payload)
+
+    def _record_decode_failure(self) -> None:
+        self.metrics.last_failure_at = datetime.now(UTC)
+        self.metrics.last_error_reason = "decode"
+        _LOGGER.warning("Unable to decode a Tuya OpenMQ message")
 
     def _mark_ready(self) -> None:
         self._set_state(True, True)

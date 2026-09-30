@@ -18,6 +18,7 @@ from .api import (
     TuyaCloudClient,
     TuyaCloudConnectionError,
     TuyaCloudError,
+    cloud_error_reason,
 )
 from .const import DOOR_CLOSE, DOOR_OPEN, DP_DOOR_CONTACT, PENDING_COMMAND_TIMEOUT
 from .garage import GarageDoorProfile
@@ -60,7 +61,8 @@ class TuyaSharedCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]):
         self.pending_door_commands: dict[str, tuple[str, float]] = {}
         self._reload_requested = False
         self._baseline_loaded = False
-        self._suppress_reconciliation_metric_once = False
+        self._initial_devices: list[TuyaSharedDevice] | None = devices
+        self._pending_command_values: dict[tuple[str, str], tuple[Any, float]] = {}
         self._last_push_by_datapoint: dict[tuple[str, str], float] = {}
         self.push_client: TuyaOpenMQClient | None = None
         self.push_metrics = TuyaPushMetrics()
@@ -75,20 +77,16 @@ class TuyaSharedCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]):
         metrics = self.push_metrics
         update = parse_push_update(payload, self.devices.keys())
         if update is None:
-            if metrics is not None:
-                metrics.ignored_messages += 1
+            metrics.ignored_messages += 1
             return
 
-        device = self.devices.get(update.device_id)
-        if device is None:
-            if metrics is not None:
-                metrics.ignored_messages += 1
-            return
+        device = self.devices[update.device_id]
         if update.online is not None:
             device.online = update.online
 
-        current = {key: dict(status) for key, status in (self.data or {}).items()}
-        device_status = current.setdefault(update.device_id, {})
+        current = dict(self.data or {})
+        device_status = dict(current.get(update.device_id, {}))
+        current[update.device_id] = device_status
         changed = sum(
             device_status.get(code) != value for code, value in update.status.items()
         )
@@ -97,11 +95,13 @@ class TuyaSharedCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]):
         received_at = time.monotonic()
         for code in update.status:
             self._last_push_by_datapoint[(update.device_id, code)] = received_at
-        if metrics is not None:
-            metrics.reports_applied += 1
-            metrics.datapoints_applied += changed
+        metrics.reports_applied += 1
+        metrics.datapoints_applied += changed
         self._resolve_pending_door_commands(current)
-        self.async_set_updated_data(current)
+        # async_set_updated_data resets polling and marks REST healthy. Push
+        # must do neither: preserve the safety poll and its independent result.
+        self.data = current
+        self.async_update_listeners()
 
     def async_handle_push_state(self, connected: bool, subscribed: bool) -> None:
         """Log push health transitions without making device entities unavailable."""
@@ -110,6 +110,11 @@ class TuyaSharedCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]):
         elif connected:
             # This is the normal interval between CONNACK and SUBACK.
             _LOGGER.debug("Tuya OpenMQ connected; waiting for subscription ack")
+        elif (
+            self.push_metrics.renewing
+            and self.push_metrics.last_renewal_result == "pending"
+        ) or (self.push_client is not None and not self.push_client.running):
+            _LOGGER.debug("Tuya OpenMQ connection is being replaced or stopped")
         else:
             _LOGGER.warning(
                 "Tuya OpenMQ is disconnected; slow REST reconciliation remains active"
@@ -123,18 +128,22 @@ class TuyaSharedCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]):
         metrics.reconciliation_runs += 1
         metrics.last_reconciliation_attempt_at = datetime.now(UTC)
         try:
-            devices = await self.client.async_get_shared_devices(self.uid)
+            devices, self._initial_devices = self._initial_devices, None
+            if devices is None:
+                devices = await self.client.async_get_shared_devices(self.uid)
             statuses = await asyncio.gather(
                 *(self.client.async_get_status(device.device_id) for device in devices)
             )
             for device, status in zip(devices, statuses, strict=True):
                 device.status = status
         except TuyaCloudAuthenticationError as err:
-            self._record_reconciliation_failure(poll_started)
+            self._record_reconciliation_failure(poll_started, err)
             raise ConfigEntryAuthFailed from err
         except (TuyaCloudConnectionError, TuyaCloudError) as err:
-            self._record_reconciliation_failure(poll_started)
-            raise UpdateFailed(str(err)) from err
+            self._record_reconciliation_failure(poll_started, err)
+            raise UpdateFailed(
+                f"Tuya REST reconciliation failed ({cloud_error_reason(err)})"
+            ) from err
 
         metrics.last_reconciliation_success_at = datetime.now(UTC)
         metrics.last_reconciliation_duration_seconds = time.monotonic() - poll_started
@@ -156,10 +165,17 @@ class TuyaSharedCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]):
             self._last_push_by_datapoint,
             poll_started,
         )
-        if self._baseline_loaded and not self._suppress_reconciliation_metric_once:
+        if self._baseline_loaded:
             previous = self.data or {}
+            now = time.monotonic()
             corrections = sum(
                 previous.get(device_id, {}).get(code) != value
+                and not (
+                    (pending := self._pending_command_values.get((device_id, code)))
+                    is not None
+                    and pending[0] == value
+                    and now - pending[1] <= PENDING_COMMAND_TIMEOUT
+                )
                 for device_id, status in data.items()
                 for code, value in status.items()
             )
@@ -173,16 +189,23 @@ class TuyaSharedCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]):
                     metrics.subscribed,
                     metrics.push_delivery_ratio,
                 )
-        self._suppress_reconciliation_metric_once = False
+        self._pending_command_values = {
+            key: pending
+            for key, pending in self._pending_command_values.items()
+            if pending[1] > poll_started
+        }
         self._baseline_loaded = True
         self._resolve_pending_door_commands(data)
         return data
 
-    def _record_reconciliation_failure(self, poll_started: float) -> None:
+    def _record_reconciliation_failure(
+        self, poll_started: float, error: BaseException
+    ) -> None:
         """Record a failed REST reconciliation without exposing its details."""
         metrics = self.push_metrics
         metrics.reconciliation_failures += 1
         metrics.last_reconciliation_failure_at = datetime.now(UTC)
+        metrics.last_reconciliation_error_reason = cloud_error_reason(error)
         metrics.last_reconciliation_duration_seconds = time.monotonic() - poll_started
 
     async def async_send_command(
@@ -199,10 +222,15 @@ class TuyaSharedCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]):
         except TuyaCloudAuthenticationError as err:
             self.config_entry.async_start_reauth(self.hass)
             raise HomeAssistantError(
-                "Tuya Cloud authentication failed; reauthentication is required"
+                translation_domain="tuya_shared_cloud",
+                translation_key="command_authentication_failed",
             ) from err
         except (TuyaCloudConnectionError, TuyaCloudError) as err:
-            raise HomeAssistantError(f"Tuya Cloud command failed: {err}") from err
+            raise HomeAssistantError(
+                translation_domain="tuya_shared_cloud",
+                translation_key="command_failed",
+                translation_placeholders={"reason": cloud_error_reason(err)},
+            ) from err
 
         profile = self.garage_profiles.get(device_id)
         if door_command and (profile is None or profile.trust_status):
@@ -213,7 +241,7 @@ class TuyaSharedCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]):
         # Never claim success from the command acknowledgement alone. Tuya can
         # accept a command that the actuator ignores; push or REST must confirm
         # every resulting state change.
-        self._suppress_reconciliation_metric_once = True
+        self._pending_command_values[(device_id, code)] = (value, time.monotonic())
         await self.async_request_refresh()
 
     def pending_door_command(self, device_id: str) -> str | None:

@@ -32,6 +32,8 @@ class TuyaSharedGarageTriggerButton(TuyaSharedEntity, ButtonEntity):
         """Initialize the stateless garage-door trigger."""
         super().__init__(coordinator, device, "garage_trigger")
         self.profile = profile
+        if not profile.allow_remote_close:
+            self._attr_translation_key = "door_open_trigger"
         self._attr_name = None
         self._attr_icon = "mdi:garage-open-variant"
 

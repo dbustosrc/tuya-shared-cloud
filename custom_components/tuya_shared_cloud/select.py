@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 from homeassistant.components.select import SelectEntity
+from homeassistant.const import EntityCategory
 
-from .const import DOOR_CLOSE, DOOR_OPEN, DP_DOOR_CONTROL
+from .const import DOOR_CLOSE, DOOR_OPEN, DP_DOOR_ALARM, DP_DOOR_CONTROL
 from .entity import TuyaSharedFunctionEntity
 
 
@@ -26,6 +27,9 @@ class TuyaSharedSelect(TuyaSharedFunctionEntity, SelectEntity):
     def __init__(self, coordinator, device, function) -> None:
         """Initialize a Tuya select."""
         super().__init__(coordinator, device, function)
+        if function.code in (DP_DOOR_CONTROL, DP_DOOR_ALARM):
+            self._attr_entity_category = EntityCategory.DIAGNOSTIC
+            self._attr_entity_registry_enabled_default = False
         self._attr_options = [
             str(option) for option in function.values.get("range", [])
         ]

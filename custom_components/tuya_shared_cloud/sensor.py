@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, ClassVar
 
 from homeassistant.components.sensor import (
     SensorDeviceClass,
@@ -13,6 +13,8 @@ from homeassistant.components.sensor import (
 )
 from homeassistant.const import PERCENTAGE, EntityCategory, UnitOfTime
 
+from .const import DOOR_ALARM_OPTIONS, DP_DOOR_ALARM
+from .coordinator import TuyaSharedCoordinator
 from .entity import TuyaSharedDiagnosticEntity, TuyaSharedEntity
 
 
@@ -20,7 +22,7 @@ from .entity import TuyaSharedDiagnosticEntity, TuyaSharedEntity
 class TuyaDiagnosticSensorEntityDescription(SensorEntityDescription):
     """Describe an account-level diagnostic sensor."""
 
-    value_fn: Callable[[Any], Any]
+    value_fn: Callable[[TuyaSharedCoordinator], Any]
 
 
 DIAGNOSTIC_SENSORS: tuple[TuyaDiagnosticSensorEntityDescription, ...] = (
@@ -133,11 +135,11 @@ async def async_setup_entry(hass, entry, async_add_entities) -> None:
         if device is None:
             continue
         writable = set(entry.runtime_data.functions.get(device_id, {}))
-        entities.extend(
-            TuyaSharedSensor(coordinator, device, code)
-            for code, value in status.items()
-            if code not in writable and not isinstance(value, bool)
-        )
+        for code, value in status.items():
+            if code == DP_DOOR_ALARM:
+                entities.append(TuyaSharedDoorAlarmSensor(coordinator, device, code))
+            elif code not in writable and not isinstance(value, bool):
+                entities.append(TuyaSharedSensor(coordinator, device, code))
     async_add_entities(entities)
 
 
@@ -165,3 +167,15 @@ class TuyaSharedSensor(TuyaSharedEntity, SensorEntity):
     def native_value(self):
         """Return the raw Tuya value."""
         return self.value
+
+
+class TuyaSharedDoorAlarmSensor(TuyaSharedEntity, SensorEntity):
+    """Display the controller's alarm without implying a physical door state."""
+
+    _attr_device_class = SensorDeviceClass.ENUM
+    _attr_options: ClassVar[list[str]] = list(DOOR_ALARM_OPTIONS)
+
+    @property
+    def native_value(self) -> str | None:
+        """Reject unknown alarm codes instead of inventing an interpretation."""
+        return self.value if self.value in DOOR_ALARM_OPTIONS else None

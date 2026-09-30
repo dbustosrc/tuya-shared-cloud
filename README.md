@@ -26,6 +26,8 @@ by Home Assistant's official Tuya integration.
   report against the current `from=sharing` inventory.
 - Reconciles authoritative REST status every 10 minutes by default. This is a
   safety net, not the primary update path.
+- Push reports do not postpone REST reconciliation or turn a failed REST
+  health indicator back on; only a successful REST pass restores REST health.
 
 ## State updates and diagnostics
 
@@ -37,6 +39,11 @@ The integration renews short-lived MQTT credentials before they expire and
 retries failed connections with bounded exponential backoff. If push is
 temporarily unavailable, entities remain usable and the slow REST
 reconciliation continues.
+
+Failed credential renewals remain pending even if the old connection is still
+active. Unexpected disconnects allow Paho to reconnect first and request fresh
+credentials if the connection has not recovered before the retry. Planned
+renewals are logged at debug level; actual failures retain warning messages.
 
 Home Assistant creates a **Tuya Shared Cloud** service device for integration
 health. Its enabled diagnostic entities show:
@@ -65,6 +72,14 @@ particular:
   had to recover; and
 - `delivery_ratio` is the proportion of observed changes delivered by push.
 
+Connection attempts/failures, the latest failure category and timestamp, and
+credential-renewal attempts/failures and the latest outcome are also included.
+Failure categories contain no remote error messages, URLs, credentials or
+device values. Counters reset when the integration is reloaded. A delivery ratio
+of `unknown` means no countable changes have occurred. Matching command
+confirmations from REST are excluded from recovery counts; unrelated changes in
+the same poll are still counted.
+
 ## Entities
 
 The integration maps every datapoint exposed by Tuya:
@@ -84,6 +99,14 @@ function additionally receive:
 - an optional stateless **Trigger door** button; and
 - a physical state derived from `doorcontact_state` only when that contact is
   configured as trustworthy.
+
+The reported `door_state_1` alarm also receives a read-only enum sensor with
+translated states. It describes the Tuya controller's report, not independent
+obstacle sensors or a confirmed physical door position. The raw relay,
+`door_control_1`, and alarm select remain available as advanced diagnostic
+entities, disabled by default for new registrations. Existing enablement choices
+and entity IDs are preserved. Enable raw controls from the device's entity list
+when needed.
 
 The raw datapoint entities remain available, including `switch_1`,
 `door_control_1`, and close commands even when the physical controller is
@@ -256,6 +279,17 @@ not change at all. Configure these quirks without editing YAML or code:
 | **Invert the reported door-contact state** | The contact reliably changes but reports open as closed and closed as open. |
 | **Trust the reported door-contact state** | `doorcontact_state` reliably follows the physical door. Disable it if the value is stuck or inconsistent. |
 | **Create a stateless door trigger button** | You want one action that sends the configured open/trigger value without guessing the current state. |
+| **Allow cover closing** | The controller accepts a meaningful remote close command. Disable it when the door closes using its own timer; the cover then offers opening only and the button is labeled **Request opening**. |
+
+Cover closing remains enabled by default for compatibility. This option controls
+the cover's supported actions; raw datapoint controls remain available for
+advanced use. Disabling it does not configure a physical close timer or change
+any independent safety system. Set it for each device through the options UI.
+
+The **Door travel time** (`tr_timecon`) parameter is the time for one direction
+of travel, not a relay pulse duration or an automatic-close delay. The
+**Open-door alarm delay** (`countdown_alarm`) is an alert delay. Do not infer the
+physical controller's automatic-close timer from either value.
 
 When trusted status is disabled, the cover deliberately reports an unknown,
 assumed state. This avoids showing a successful movement that never occurred.

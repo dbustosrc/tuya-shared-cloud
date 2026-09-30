@@ -63,7 +63,8 @@
           "invert_cover_control": "Invert open and close command values",
           "invert_cover_status": "Invert the reported door-contact state",
           "trust_cover_status": "Trust the reported door-contact state",
-          "expose_trigger_button": "Create a stateless door trigger button"
+          "expose_trigger_button": "Create a stateless door trigger button",
+          "allow_remote_close": "Allow cover closing"
         }
       }
     },
@@ -72,8 +73,58 @@
       "garage_device_unavailable": "The selected garage-door device is no longer available."
     }
   },
+  "exceptions": {
+    "remote_close_disabled": {
+      "message": "Remote closing is disabled for this door."
+    },
+    "command_authentication_failed": {
+      "message": "Tuya rejected authentication. Reauthenticate the integration."
+    },
+    "command_failed": {
+      "message": "Tuya could not accept the command ({reason})."
+    }
+  },
   "entity": {
+    "switch": {
+      "switch_1": {
+        "name": "Relay"
+      },
+      "voice_control_1": {
+        "name": "Voice control"
+      }
+    },
+    "number": {
+      "countdown_1": {
+        "name": "Door countdown"
+      },
+      "tr_timecon": {
+        "name": "Door travel time"
+      },
+      "countdown_alarm": {
+        "name": "Open-door alarm delay"
+      }
+    },
+    "select": {
+      "door_control_1": {
+        "name": "Door control",
+        "state": {
+          "open": "Open",
+          "close": "Close"
+        }
+      },
+      "door_state_1": {
+        "name": "Controller alarm",
+        "state": {
+          "none": "No reported alarm",
+          "unclosed_time": "Prolonged unclosed time",
+          "close_time_alarm": "Closing time alarm"
+        }
+      }
+    },
     "binary_sensor": {
+      "doorcontact_state": {
+        "name": "Door contact"
+      },
       "cloud_push": {
         "name": "Cloud push"
       },
@@ -82,11 +133,22 @@
       }
     },
     "button": {
+      "door_open_trigger": {
+        "name": "Request opening"
+      },
       "door_trigger": {
         "name": "Trigger door"
       }
     },
     "sensor": {
+      "door_state_1": {
+        "name": "Controller alarm",
+        "state": {
+          "none": "No reported alarm",
+          "unclosed_time": "Prolonged unclosed time",
+          "close_time_alarm": "Closing time alarm"
+        }
+      },
       "last_cloud_message": {
         "name": "Last cloud message"
       },

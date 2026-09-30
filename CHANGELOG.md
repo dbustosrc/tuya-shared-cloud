@@ -1,5 +1,27 @@
 # Changelog
 
+## 1.4.0 — 2026-09-30
+
+- Keep REST health and the reconciliation schedule independent of incoming push
+  reports, including repeated reports and recovery from REST failures.
+- Retry failed OpenMQ credential renewals even while the old connection remains
+  active, and recover with fresh credentials after unexpected disconnects.
+- Require successful acknowledgement of every subscription before declaring
+  cloud push healthy.
+- Add a per-device option to disable cover closing for controllers with an
+  automatic close timer, with an opening-request button label in this mode.
+- Add a read-only, translated controller-alarm sensor. Retain raw controls as
+  advanced diagnostic entities and preserve existing entity identifiers and
+  enablement preferences.
+- Correct the door travel-time label and translate device entities, alarm
+  states, and command errors into English and Spanish.
+- Record safe failure categories and connection/renewal outcomes in downloaded
+  diagnostics; distinguish planned renewals from unexpected disconnects in logs.
+- Exclude only matching command confirmations from REST recovery metrics instead
+  of skipping unrelated changes in the same poll.
+- Reuse the initial shared inventory, copy only the reported device's datapoints
+  on push, improve runtime types, and add behavioral regression tests.
+
 ## 1.3.0 — 2026-09-17
 
 - Add a dedicated **Tuya Shared Cloud** service device for integration-level

@@ -16,6 +16,7 @@ from .api import (
     TuyaCloudClient,
     TuyaCloudConnectionError,
     TuyaCloudError,
+    cloud_error_reason,
 )
 from .const import (
     CONF_ACCESS_ID,
@@ -62,7 +63,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: TuyaSharedConfigEntry) -
     except TuyaCloudAuthenticationError as err:
         raise ConfigEntryAuthFailed from err
     except (TuyaCloudConnectionError, TuyaCloudError) as err:
-        raise ConfigEntryNotReady(str(err)) from err
+        raise ConfigEntryNotReady(
+            f"Tuya Cloud setup failed ({cloud_error_reason(err)})"
+        ) from err
 
     functions: dict[str, dict[str, TuyaFunction]] = {}
     for device, definition in zip(devices, definitions, strict=True):
@@ -104,11 +107,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: TuyaSharedConfigEntry) -
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     try:
         await push_client.async_start()
-    except Exception:
+    except (TuyaCloudError, OSError, ValueError, TypeError):
         # Keep the integration usable while the self-healing retry task restores
         # push. The slow coordinator remains a correctness backstop.
-        _LOGGER.exception(
-            "Tuya OpenMQ could not start; REST reconciliation is active while retrying"
+        _LOGGER.warning(
+            "Tuya OpenMQ could not start (%s); REST reconciliation is active "
+            "while retrying",
+            push_client.metrics.last_error_reason,
         )
     return True
 

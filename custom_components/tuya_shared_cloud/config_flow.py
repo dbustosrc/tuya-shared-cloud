@@ -24,6 +24,7 @@ from .api import (
 from .const import (
     CONF_ACCESS_ID,
     CONF_ACCESS_SECRET,
+    CONF_ALLOW_REMOTE_CLOSE,
     CONF_EXPOSE_TRIGGER_BUTTON,
     CONF_GARAGE_DEVICE,
     CONF_GARAGE_DEVICES,
@@ -320,6 +321,10 @@ class TuyaSharedCloudOptionsFlow(OptionsFlowWithReload):
                     vol.Required(
                         CONF_EXPOSE_TRIGGER_BUTTON,
                         default=bool(current.get(CONF_EXPOSE_TRIGGER_BUTTON, True)),
+                    ): bool,
+                    vol.Required(
+                        CONF_ALLOW_REMOTE_CLOSE,
+                        default=bool(current.get(CONF_ALLOW_REMOTE_CLOSE, True)),
                     ): bool,
                 }
             ),

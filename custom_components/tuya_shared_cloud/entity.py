@@ -64,7 +64,10 @@ class TuyaSharedEntity(CoordinatorEntity[TuyaSharedCoordinator]):
         self.device_id = device.device_id
         self.code = code
         self._attr_unique_id = f"{device.device_id}_{code}"
-        self._attr_name = datapoint_name(code)
+        if code in DP_NAMES:
+            self._attr_translation_key = code
+        else:
+            self._attr_name = datapoint_name(code)
         self._attr_icon = DP_ICONS.get(code)
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, device.device_id)},
@@ -110,4 +113,5 @@ class TuyaSharedFunctionEntity(TuyaSharedEntity):
         """Initialize a writable datapoint entity."""
         super().__init__(coordinator, device, function.code)
         self.function = function
-        self._attr_name = datapoint_name(function.code, function.name)
+        if function.code not in DP_NAMES:
+            self._attr_name = datapoint_name(function.code, function.name)
