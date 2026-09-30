@@ -34,7 +34,7 @@ class DiagnosticEntityTests(unittest.TestCase):
 
     def test_release_manifest_and_translations_include_diagnostics(self):
         manifest = json.loads((COMPONENT / "manifest.json").read_text())
-        self.assertEqual(manifest["version"], "1.4.0")
+        self.assertEqual(manifest["version"], "1.4.1")
 
         required_binary_sensors = {"cloud_push", "rest_polling", "doorcontact_state"}
         required_sensors = {

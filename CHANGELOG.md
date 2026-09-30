@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.4.1 — 2026-09-30
+
+- Fix translated trigger and opening-request button names being overridden by
+  an explicitly unnamed entity. Preserve the existing button entity identifier.
+
 ## 1.4.0 — 2026-09-30
 
 - Keep REST health and the reconciliation schedule independent of incoming push

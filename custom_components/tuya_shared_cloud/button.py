@@ -34,7 +34,6 @@ class TuyaSharedGarageTriggerButton(TuyaSharedEntity, ButtonEntity):
         self.profile = profile
         if not profile.allow_remote_close:
             self._attr_translation_key = "door_open_trigger"
-        self._attr_name = None
         self._attr_icon = "mdi:garage-open-variant"
 
     async def async_press(self) -> None:

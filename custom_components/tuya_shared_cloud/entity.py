@@ -66,7 +66,7 @@ class TuyaSharedEntity(CoordinatorEntity[TuyaSharedCoordinator]):
         self._attr_unique_id = f"{device.device_id}_{code}"
         if code in DP_NAMES:
             self._attr_translation_key = code
-        else:
+        elif not getattr(self, "_attr_translation_key", None):
             self._attr_name = datapoint_name(code)
         self._attr_icon = DP_ICONS.get(code)
         self._attr_device_info = DeviceInfo(

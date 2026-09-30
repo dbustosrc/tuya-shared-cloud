@@ -114,6 +114,9 @@ _modules = {
         UnitOfTime=types.SimpleNamespace(SECONDS="s"),
     ),
     "homeassistant.components": _module("components"),
+    "homeassistant.components.button": _module(
+        "button", ButtonEntity=type("ButtonEntity", (), {})
+    ),
     "homeassistant.components.cover": _module(
         "cover",
         CoverDeviceClass=types.SimpleNamespace(GARAGE="garage"),
@@ -138,6 +141,7 @@ with patch.dict("sys.modules", _modules):
     coordinator_module = transport._load("coordinator")
     entity_module = transport._load("entity")
     cover_module = transport._load("cover")
+    button_module = transport._load("button")
     sensor_module = transport._load("sensor")
     binary_module = transport._load("binary_sensor")
     transport.package.TuyaSharedConfigEntry = object
@@ -251,6 +255,12 @@ class RuntimeTests(unittest.TestCase):
             self.assertEqual(cover._attr_unique_id, "device_garage_door")
             self.assertEqual(cover._attr_supported_features, _Features.OPEN)
             self.assertIsNone(cover.is_closed)
+            button = button_module.TuyaSharedGarageTriggerButton(
+                coordinator, device, profile
+            )
+            self.assertEqual(button._attr_unique_id, "device_garage_trigger")
+            self.assertEqual(button._attr_translation_key, "door_open_trigger")
+            self.assertNotIn("_attr_name", button.__dict__)
             with self.assertRaises(_HAError) as raised:
                 await cover.async_close_cover()
             self.assertEqual(raised.exception.translation_key, "remote_close_disabled")
